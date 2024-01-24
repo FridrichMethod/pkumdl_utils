@@ -1,2 +1,2 @@
 # pkumdl_utils
-Some useful scripts in drug design experiments and data-analysis
+Some useful scripts for drug design experiments and data analysis
