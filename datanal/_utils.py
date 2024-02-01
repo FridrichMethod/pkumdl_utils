@@ -20,6 +20,14 @@ import numpy as np
 import pandas as pd
 from matplotlib import rcParams, ticker
 
+units = {
+    "M": (1, 2e-1),
+    "mM": (1e-3, 2e-4),
+    "μM": (1e-6, 2e-7),
+    "nM": (1e-9, 2e-10),
+    "pM": (1e-12, 2e-13),
+}
+
 
 def set_fig(config_file: str) -> None:
     """Set figure style.
@@ -35,18 +43,17 @@ def set_fig(config_file: str) -> None:
     """
 
     if os.path.exists(config_file):
-        with open(config_file, encoding='utf-8') as cf:
+        with open(config_file, encoding="utf-8") as cf:
             config = json.load(cf)
         rcParams.update(config)
     else:
-        warn(
-            f'{config_file} does not exist. Default settings are used.')
+        warn(f"{config_file} does not exist. Default settings are used.")
 
 
 def scale_tick(ax: Any, data: np.ndarray, axis: str, bound: float) -> None:
     """Automatically scale ticks in GraphPad Prism style.
 
-    Parameters  
+    Parameters
     ----------
     ax : Any
         Axes object.
@@ -62,7 +69,7 @@ def scale_tick(ax: Any, data: np.ndarray, axis: str, bound: float) -> None:
     None.
     """
 
-    if axis not in ['x', 'y']:
+    if axis not in ("x", "y"):
         raise ValueError('axis must be "x" or "y".')
 
     # Generate ticks
@@ -73,20 +80,20 @@ def scale_tick(ax: Any, data: np.ndarray, axis: str, bound: float) -> None:
 
     # Expand ticks to include the minimum and maximum values
     d_gap = d_ticks[1] - d_ticks[0]
-    if np.min(d_ticks) + d_gap*bound >= D_min:
+    if np.min(d_ticks) + d_gap * bound >= D_min:
         d_ticks = np.insert(d_ticks, 0, np.min(d_ticks) - d_gap)
-    if np.max(d_ticks) - d_gap*bound <= D_max:
+    if np.max(d_ticks) - d_gap * bound <= D_max:
         d_ticks = np.append(d_ticks, np.max(d_ticks) + d_gap)
 
     # Set ticks to ensure that the limits of axes match the major ticks
-    if axis == 'x':
+    if axis == "x":
         ax.set_xticks(d_ticks)
         if len(d_ticks) >= 4:
             ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(2))
         else:
             ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(4))
         ax.set_xlim(np.min(d_ticks), np.max(d_ticks))
-    if axis == 'y':
+    if axis == "y":
         ax.set_yticks(d_ticks)
         if len(d_ticks) >= 4:
             ax.yaxis.set_minor_locator(ticker.AutoMinorLocator(2))
@@ -110,16 +117,19 @@ def read_curves(input_file: str) -> pd.DataFrame:
     """
 
     try:
-        df = pd.read_csv(input_file, sep='\t', encoding='utf-8').dropna()
+        df = pd.read_csv(input_file, sep="\t", encoding="utf-8").dropna()
     except UnicodeDecodeError:
         # Some files are not encoded in UTF-8 but ISO-8859-1
-        warn(f'{input_file} is not encoded in UTF-8.')
+        warn(f"{input_file} is not encoded in UTF-8.")
         # Replace the unknown characters to the replacement character
-        with open(input_file, 'r', encoding='iso-8859-1', errors='replace') as f:
+        with open(input_file, "r", encoding="iso-8859-1", errors="replace") as f:
             curves = f.read()
-        curves_utf8 = curves.encode(
-            'iso-8859-1').decode('utf-8', errors='replace').replace('\ufffd', 'μ')
-        df = pd.read_csv(StringIO(curves_utf8), sep='\t').dropna()
+        curves_utf8 = (
+            curves.encode("iso-8859-1")
+            .decode("utf-8", errors="replace")
+            .replace("\ufffd", "μ")
+        )
+        df = pd.read_csv(StringIO(curves_utf8), sep="\t").dropna()
 
     return df
 
@@ -140,21 +150,13 @@ def determine_unit(quant: float) -> tuple[str, float]:
         Factor to convert the constant to the unit.
     """
 
-    units = {
-        'M': (1, 2e-1),
-        'mM': (1e-3, 2e-4),
-        'μM': (1e-6, 2e-7),
-        'nM': (1e-9, 2e-10),
-        'pM': (1e-12, 2e-13),
-    }
-
     for unit, (scale, bound) in units.items():
         if quant >= bound:
             break
     else:
-        unit, scale = 'fM', 1e-15
+        unit, scale = "fM", 1e-15
 
-    factor = 1/scale
+    factor = 1 / scale
 
     return unit, factor
 
@@ -173,21 +175,13 @@ def transform_unit(quant_unit: str) -> str:
         A constant with new unit.
     """
 
-    units = {
-        'M': (1, 2e-1),
-        'mM': (1e-3, 2e-4),
-        'μM': (1e-6, 2e-7),
-        'nM': (1e-9, 2e-10),
-        'pM': (1e-12, 2e-13),
-    }
-
     quant, old_unit = quant_unit.split()
     quant = float(quant)
     try:
         quant *= units[old_unit][0]
     except KeyError:
-        print(f'Unit {old_unit} is not supported.')
+        print(f"Unit {old_unit} is not supported.")
     new_unit, factor = determine_unit(quant)
     quant *= factor
 
-    return f'{quant:.2f} {new_unit}' if quant <= 2 else f'{quant:.1f} {new_unit}'
+    return f"{quant:.2f} {new_unit}" if quant <= 2 else f"{quant:.1f} {new_unit}"
