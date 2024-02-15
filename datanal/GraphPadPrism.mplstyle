@@ -1,0 +1,45 @@
+axes.autolimit_mode: round_numbers
+axes.labelsize: 12
+axes.labelweight: bold
+axes.linewidth: 1.5
+axes.spines.right: False
+axes.spines.top: False
+axes.titlesize: 16
+axes.titleweight: bold
+
+errorbar.capsize: 3
+
+figure.dpi: 300
+figure.figsize: 4.5, 3
+figure.frameon: False
+
+font.sans-serif: Arial, sans-serif
+font.size: 14
+font.weight: bold
+
+legend.fontsize: 8
+legend.frameon: False
+legend.loc: upper right
+
+lines.linewidth: 2
+lines.markeredgecolor: black
+lines.markerfacecolor: black
+
+mathtext.bf: Arial:bold
+mathtext.bfit: Arial:italic:bold
+mathtext.fontset: custom
+mathtext.it: Arial:italic
+mathtext.rm: Arial
+mathtext.sf: Arial
+
+savefig.bbox: tight
+
+xtick.labelsize: 10
+xtick.major.width: 1.5
+xtick.minor.visible: True
+xtick.minor.width: 1.5
+
+ytick.labelsize: 10
+ytick.major.width: 1.5
+ytick.minor.visible: True
+ytick.minor.width: 1.5
