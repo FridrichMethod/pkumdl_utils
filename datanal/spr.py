@@ -35,28 +35,21 @@ from warnings import warn
 
 import numpy as np
 import pandas as pd
+
 # import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import curve_fit
 from scipy.signal import medfilt
+
 # from scipy.signal import savgol_filter
 
-import datanal  # For importing the custom styles
-from datanal.__init__ import auto_ticks, auto_units
+
+from ._utils import auto_style, auto_ticks, auto_units
 
 
 class SPR:
     """Surface plasmon resonance (SPR) data analysis.
-
-    Attributes
-    ----------
-    rc_mplstyle : dict[str, Any] | None
-        The matplotlib style for rcParams.
-    fname_mplstyle : str | None
-        The matplotlib style for figure.
-    palette_snsstyle : str | list[str] | None
-        The seaborn style for palette.
 
     Methods
     -------
@@ -65,37 +58,6 @@ class SPR:
     langmuir_fit
         Fit the Langmuir isotherm equation to the affinity data.
     """
-
-    def __init__(
-        self,
-        rc_mplstyle: dict[str, Any] | None = None,
-        fname_mplstyle: str | None = None,
-        palette_snsstyle: str | list[str] | None = None,
-    ) -> None:
-        """Initialize the matplotlib and seaborn styles.
-
-        Parameters
-        ----------
-        rc_mplstyle : dict[str, Any] | None
-            The matplotlib style for rcParams.
-        fname_mplstyle : str | None
-            The matplotlib style for figure.
-        palette_snsstyle : str | list[str] | None
-            The seaborn style for palette.
-
-        Returns
-        -------
-        None
-        """
-
-        plt.style.use("datanal.GraphPadPrism")
-        sns.set_palette("bright")
-        if palette_snsstyle is not None:
-            sns.set_palette(palette_snsstyle)
-        if fname_mplstyle is not None:
-            plt.style.use(fname_mplstyle)
-        if rc_mplstyle is not None:
-            plt.style.use(rc_mplstyle)
 
     @staticmethod
     def langmuir(
@@ -159,14 +121,13 @@ class SPR:
 
         # Fit affinity
         try:
-            popt, pcov, *pelse = curve_fit(
+            popt, pcov, *_ = curve_fit(
                 SPR.langmuir,
                 x_data,
                 y_data,
                 p0=initial_guess,
                 bounds=(lower_bounds, upper_bounds),
             )
-            del pelse  # Not used
         except RuntimeError:
             # Some affinity data are not fitted successfully
             return None, None
@@ -180,7 +141,7 @@ class SPR:
         return popt, pcov
 
 
-class SPRAffinity(SPR):
+class SPRAffinity:
     """Surface plasmon resonance (SPR) affinity data analysis.
 
     Attributes
@@ -190,12 +151,12 @@ class SPRAffinity(SPR):
 
     Methods
     -------
-    __str__
+    __repr__
         Return the name of the affinity file.
-    affinity_data
-        Read the first two data frames (concentration and response) of the affinity file.
     __len__
         Return the number of data points in the affinity file.
+    affinity_data
+        Read the first two data frames (concentration and response) of the affinity file.
     affinity_fit
         Fit the affinity data to the Langmuir isotherm equation.
     affinity_plot
@@ -228,33 +189,32 @@ class SPRAffinity(SPR):
         None
         """
 
-        super().__init__(rc_mplstyle, fname_mplstyle, palette_snsstyle)
+        auto_style(rc_mplstyle, fname_mplstyle, palette_snsstyle)
+
         if os.path.exists(affinity_file):
-            self.__affinity_file = affinity_file
+            self._affinity_file = affinity_file
         else:
             raise FileNotFoundError(f"{affinity_file} does not exist.")
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         """Return the name of the affinity file."""
 
-        return os.path.basename(self.__affinity_file)
-
-    @property
-    def affinity_data(self) -> pd.DataFrame:
-        """Read the first two data frames (concentration and response) of the affinity file."""
-
-        df = (
-            pd.read_csv(self.__affinity_file, sep="\t", encoding="utf-8")
-            .iloc[:, :2]
-            .dropna()
-        )
-
-        return df
+        return os.path.basename(self._affinity_file)
 
     def __len__(self) -> int:
         """Return the number of data points in the affinity file."""
 
         return len(self.affinity_data)
+
+    @property
+    def affinity_data(self) -> pd.DataFrame:
+        """Read the first two data frames (concentration and response) of the affinity file."""
+
+        return (
+            pd.read_csv(self._affinity_file, sep="\t", encoding="utf-8")
+            .iloc[:, :2]
+            .dropna()
+        )
 
     def affinity_fit(
         self,
@@ -277,11 +237,9 @@ class SPRAffinity(SPR):
         unit, factor = auto_units(x_data.mean())
 
         # Fit affinity
-        fit = super().langmuir_fit(x_data, y_data)
+        fit = SPR.langmuir_fit(x_data, y_data)
         if any(p is None for p in fit):
-            warn(
-                f"{os.path.basename(self.__affinity_file)} is not fitted successfully."
-            )
+            warn(f"{os.path.basename(self._affinity_file)} is not fitted successfully.")
             return x_data * factor, y_data, None, None, None, None, unit, factor
 
         popt, pcov = fit
@@ -289,21 +247,21 @@ class SPRAffinity(SPR):
         # Generate fitted curve
         assert popt is not None and pcov is not None
         x_fit = np.linspace(np.min(x_data), np.max(x_data), 1000)
-        y_fit = super().langmuir(x_fit, *popt)
+        y_fit = SPR.langmuir(x_fit, *popt)
         K_d_mean = popt[1]
         K_d_std = np.sqrt(pcov[1, 1])
 
         # Check the dissociation constant
         if K_d_mean > 1e-4:
             warn(
-                f"{os.path.basename(self.__affinity_file)} has too large dissociation constant."
+                f"{os.path.basename(self._affinity_file)} has too large dissociation constant."
             )
         if (
             K_d_mean < np.min(x_data)
             or K_d_mean > (np.max(x_data) + np.min(x_data)) / 2
         ):
             warn(
-                f"{os.path.basename(self.__affinity_file)} has dissociation constant out of confident interval."
+                f"{os.path.basename(self._affinity_file)} has dissociation constant out of confident interval."
             )
 
         return (
@@ -352,8 +310,7 @@ class SPRAffinity(SPR):
         # Initializing
         fig, ax = plt.subplots(figsize=fig_size, dpi=dpi)
         fit = self.affinity_fit()
-        x_data, y_data, x_fit, y_fit, K_d_mean, K_d_std, unit, factor = fit
-        del factor  # Not used
+        x_data, y_data, x_fit, y_fit, K_d_mean, K_d_std, unit, _ = fit
 
         # Auto scale ticks
         auto_ticks(ax)
@@ -387,31 +344,29 @@ class SPRAffinity(SPR):
         ax.set_ylabel("Response/RU")
 
         # Save figure
-        output_file = self.__affinity_file[:-4] + ".png"
+        output_file = os.path.splitext(self._affinity_file)[0] + ".png"
         plt.savefig(output_file)
         print(f"Successfully saved {os.path.basename(output_file)}")
         plt.show()
         plt.close(fig)
 
 
-class SPRCurves(SPR):
+class SPRCurves:
     """Surface plasmon resonance (SPR) curves data analysis.
 
     Attributes
     ----------
     curves_file : str
         The curves data file.
-    __affinity_fit_ : tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, float, str, float] | None
-        The fitted affinity data.
 
     Methods
     -------
-    __str__
+    __repr__
         Return the name of the curves file.
-    curves_data
-        Read curves from the curves file and change the encoding to UTF-8.
     __len__
         Return the number of curves in the curves file.
+    curves_data
+        Read curves from the curves file and change the encoding to UTF-8.
     concentrations
         Extract the concentrations from the curves file.
     curves_plot
@@ -448,32 +403,37 @@ class SPRCurves(SPR):
         """
 
         if affinity_file is None:
-            self.__affinity_fit_ = None
+            self.affinity_fit_ = None
         else:
-            self.__affinity_fit_ = SPRAffinity(affinity_file).affinity_fit()
+            self.affinity_fit_ = SPRAffinity(affinity_file).affinity_fit()
 
-        super().__init__(rc_mplstyle, fname_mplstyle, palette_snsstyle)
+        auto_style(rc_mplstyle, fname_mplstyle, palette_snsstyle)
         if os.path.exists(curves_file):
-            self.__curves_file = curves_file
+            self._curves_file = curves_file
         else:
             raise FileNotFoundError(f"{curves_file} does not exist.")
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         """Return the name of the curves file."""
 
-        return os.path.basename(self.__curves_file)
+        return os.path.basename(self._curves_file)
+
+    def __len__(self) -> int:
+        """Return the number of curves in the curves file."""
+
+        return len(self.curves_data)
 
     @property
     def curves_data(self) -> pd.DataFrame:
         """Read curves from the curves file and change the encoding to UTF-8."""
 
         try:
-            df = pd.read_csv(self.__curves_file, sep="\t", encoding="utf-8").dropna()
+            df = pd.read_csv(self._curves_file, sep="\t", encoding="utf-8").dropna()
         except UnicodeDecodeError:
             # Some files are not encoded in UTF-8 but ISO-8859-1
-            warn(f"{self.__curves_file} is not encoded in UTF-8. Try ISO-8859-1...")
+            warn(f"{self._curves_file} is not encoded in UTF-8. Try ISO-8859-1...")
             # Replace the unknown characters to the replacement character
-            with open(self.__curves_file, "r", encoding="iso-8859-1") as f:
+            with open(self._curves_file, "r", encoding="iso-8859-1") as f:
                 curves_iso = f.read()
             curves_utf8 = (
                 curves_iso.encode("iso-8859-1")
@@ -484,24 +444,19 @@ class SPRCurves(SPR):
 
         return df
 
-    def __len__(self) -> int:
-        """Return the number of curves in the curves file."""
-
-        return len(self.curves_data)
-
     @property
     def concentrations(self) -> list[tuple[float, str]]:
         """Extract the concentrations from the curves file."""
 
-        def __extract_conc(title):
+        def _extract_conc(title):
             quant, old_unit = title.strip()[:-2].split()[-2:]
             quant = float(quant)
-            new_unit, factor = auto_units(quant, old_unit=old_unit)
+            new_unit, factor = auto_units(quant, old_unit)
             quant *= factor
             return quant, new_unit
 
         df = self.curves_data
-        conc = list(map(__extract_conc, df.iloc[:, 0::2].columns))
+        conc = list(map(_extract_conc, df.iloc[:, 0::2].columns))
 
         return conc
 
@@ -553,8 +508,7 @@ class SPRCurves(SPR):
         df_y = df.iloc[:, 1::2]
 
         # Auto scale ticks
-        ax.set_xlim(x_lower_bound, x_upper_bound)
-        auto_ticks(ax)
+        auto_ticks(ax, x_lower_bound=x_lower_bound, x_upper_bound=x_upper_bound)
 
         # Plot SPR curves
         if max_filter_order % 2 == 0 or max_filter_order <= min_filter_order:
@@ -566,7 +520,7 @@ class SPRCurves(SPR):
         y_data_max = medfilt(df_y.values.T.flatten(), max_filter_order).max()
 
         for i, (quant, old_unit) in enumerate(conc):
-            new_unit, factor = auto_units(quant, old_unit=old_unit)
+            new_unit, factor = auto_units(quant, old_unit)
             quant *= factor
             x_data: np.ndarray = np.array(df_x.iloc[:, i].values)
             y_data: np.ndarray = np.array(df_y.iloc[:, i].values)
@@ -584,7 +538,7 @@ class SPRCurves(SPR):
                 y_filtered = medfilt(y_between, filter_order)
             else:
                 warn(
-                    f"Concentration {quant:.2f} {new_unit} in {os.path.basename(self.__curves_file)} has reached the max filter order."
+                    f"Concentration {quant:.2f} {new_unit} in {os.path.basename(self._curves_file)} has reached the max filter order."
                 )
 
             # Plot one SPR curve each time
@@ -603,21 +557,24 @@ class SPRCurves(SPR):
         ax.set_ylabel("Response/RU")
 
         # Set title
-        fit = self.__affinity_fit_
+        fit = self.affinity_fit_
         if fit is not None:
-            K_d_mean, K_d_std, unit, factor = fit[4:]
-            del factor  # Not used
+            K_d_mean, K_d_std, unit, _ = fit[4:]
+
+            compound_name = (
+                os.path.splitext(os.path.basename(self._curves_file))[0][:-1]
+                .replace("_", " ")
+                .strip()
+            )
             if any(p is None for p in fit):  # If fitted unsuccessfully
-                ax.set_title(
-                    f"{os.path.basename(self.__curves_file)[:-5].replace("_", " ").strip()}: Fitted unsuccessfully"
-                )
+                ax.set_title(f"{compound_name}: Fitted unsuccessfully")
             else:
                 ax.set_title(
-                    rf"{os.path.basename(self.__curves_file)[:-5].replace('_', ' ').strip()}: $K_\mathrm{{d}} = {K_d_mean:.1f} \pm {K_d_std:.1f}\ \mathrm{{{unit}}}$"
+                    rf"{compound_name}: $K_\mathrm{{d}} = {K_d_mean:.1f} \pm {K_d_std:.1f}\ \mathrm{{{unit}}}$"
                 )
 
         # Save figure
-        output_file = self.__curves_file[:-4] + ".png"
+        output_file = os.path.splitext(self._curves_file)[0] + ".png"
         plt.savefig(output_file)
         print(f"Successfully saved {os.path.basename(output_file)}")
         plt.show()
@@ -735,18 +692,21 @@ def main() -> None:
         "--rc_mplstyle",
         type=str,
         help="The matplotlib style file for rcParams.",
+        default=None,
     )
     parser.add_argument(
         "-f",
         "--fname_mplstyle",
         type=str,
         help="The matplotlib style file for figure.",
+        default=None,
     )
     parser.add_argument(
         "-p",
         "--palette_snsstyle",
         type=str,
         help="The seaborn style for palette.",
+        default=None,
     )
     args = parser.parse_args()
 
