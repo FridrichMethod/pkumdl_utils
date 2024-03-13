@@ -724,22 +724,36 @@ def main() -> None:
         help="The directory containing the curves data files.",
     )
     parser.add_argument(
+        "-l",
+        "--lower",
+        type=float,
+        help="The lower bound of the x-axis in curves plot.",
+        default=-50,
+    )
+    parser.add_argument(
+        "-u",
+        "--upper",
+        type=float,
+        help="The upper bound of the x-axis in curves plot.",
+        default=200,
+    )
+    parser.add_argument(
         "-r",
-        "--rc_mplstyle",
+        "--rc",
         type=str,
         help="The matplotlib style file for rcParams.",
         default=None,
     )
     parser.add_argument(
         "-f",
-        "--fname_mplstyle",
+        "--fname",
         type=str,
         help="The matplotlib style file for figure.",
         default=None,
     )
     parser.add_argument(
         "-p",
-        "--palette_snsstyle",
+        "--palette",
         type=str,
         help="The seaborn style for palette.",
         default=None,
@@ -759,6 +773,8 @@ def main() -> None:
             rc_mplstyle=args.rc_mplstyle,
             fname_mplstyle=args.fname_mplstyle,
             palette_snsstyle=args.palette_snsstyle,
+            x_lower_bound=args.lower,
+            x_upper_bound=args.upper,
         )
 
 
