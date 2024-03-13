@@ -763,16 +763,16 @@ def main() -> None:
     if args.affinity is not None:
         affinity(
             args.affinity,
-            rc_mplstyle=args.rc_mplstyle,
-            fname_mplstyle=args.fname_mplstyle,
-            palette_snsstyle=args.palette_snsstyle,
+            rc_mplstyle=args.rc,
+            fname_mplstyle=args.fname,
+            palette_snsstyle=args.palette,
         )
     if args.curves is not None:
         curves(
             args.curves,
-            rc_mplstyle=args.rc_mplstyle,
-            fname_mplstyle=args.fname_mplstyle,
-            palette_snsstyle=args.palette_snsstyle,
+            rc_mplstyle=args.rc,
+            fname_mplstyle=args.fname,
+            palette_snsstyle=args.palette,
             x_lower_bound=args.lower,
             x_upper_bound=args.upper,
         )
