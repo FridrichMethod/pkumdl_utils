@@ -347,7 +347,7 @@ class SPRAffinity:
         output_file = os.path.splitext(self._affinity_file)[0] + ".png"
         plt.savefig(output_file)
         print(f"Successfully saved {os.path.basename(output_file)}")
-        plt.show()
+
         plt.close(fig)
 
 
@@ -508,7 +508,7 @@ class SPRCurves:
         df_y = df.iloc[:, 1::2]
 
         # Auto scale ticks
-        auto_ticks(ax, x_lower_bound=x_lower_bound, x_upper_bound=x_upper_bound)
+        auto_ticks(ax, x_lim=(x_lower_bound, x_upper_bound))
 
         # Plot SPR curves
         if max_filter_order % 2 == 0 or max_filter_order <= min_filter_order:
@@ -577,7 +577,7 @@ class SPRCurves:
         output_file = os.path.splitext(self._curves_file)[0] + ".png"
         plt.savefig(output_file)
         print(f"Successfully saved {os.path.basename(output_file)}")
-        plt.show()
+
         plt.close(fig)
 
 
@@ -602,7 +602,22 @@ def affinity(
     palette_snsstyle : str | list[str] | None
         The seaborn style for palette.
     **kwargs : Any
-        The keyword arguments for the affinity plot.
+        The keyword arguments for the affinity plot, see below.
+
+    Keyword Arguments
+    -----------------
+    fig_size : tuple[float, float], optional
+        The size of the figure.
+    dpi : float, optional
+        The resolution of the figure.
+    marker_color : str, optional
+        The color of the data points.
+    marker_size : float, optional
+        The size of the data points.
+    line_color : str, optional
+        The color of the fitted curve.
+    line_width : float, optional
+        The width of the fitted curve.
 
     Returns
     -------
@@ -641,7 +656,28 @@ def curves(
     palette_snsstyle : str | list[str] | None
         The seaborn style for palette.
     **kwargs : Any
-        The keyword arguments for the curves plot.
+        The keyword arguments for the curves plot, see below.
+
+    Keyword Arguments
+    -----------------
+    x_lower_bound : float, optional
+        The lower bound of the x-axis.
+    x_upper_bound : float, optional
+        The upper bound of the x-axis.
+    min_filter_order : int, optional
+        The minimum filter order for the signal filter.
+    max_filter_order : int, optional
+        The maximum filter order for the signal filter.
+    peak_cutoff : float, optional
+        The cutoff for the sharp peaks.
+    fig_size : tuple[float, float], optional
+        The size of the figure.
+    dpi : float, optional
+        The resolution of the figure.
+    line_width : float, optional
+        The width of the SPR curves.
+    legend_distance : float, optional
+        The distance of the legend from the upper right corner.
 
     Returns
     -------

@@ -45,10 +45,8 @@ def auto_style(
 def auto_ticks(
     ax: Axes,
     *,
-    x_lower_bound: float | None = None,
-    x_upper_bound: float | None = None,
-    y_lower_bound: float | None = None,
-    y_upper_bound: float | None = None,
+    x_lim: tuple[float, float] | None = None,
+    y_lim: tuple[float, float] | None = None,
 ) -> None:
     """Set the major and minor ticks of an axis automatically.
 
@@ -56,21 +54,18 @@ def auto_ticks(
     ----------
     ax : Axes
         The axis to be set.
-    x_lower_bound : float | None, optional
-        The lower bound of the x-axis, by default None.
-    x_upper_bound : float | None, optional
-        The upper bound of the x-axis, by default None.
-    y_lower_bound : float | None, optional
-        The lower bound of the y-axis, by default None.
-    y_upper_bound : float | None, optional
-        The upper bound of the y-axis, by default None.
-    
+    x_lim : tuple[float, float] | None, optional
+        The limits of the x-axis, by default None.
+    y_lim : tuple[float, float] | None, optional
+        The limits of the y-axis, by default None.
+
     Returns
     -------
     None
     """
 
-    ax.set_xlim(x_lower_bound, x_upper_bound)
+    if x_lim is not None:
+        ax.set_xlim(x_lim)
     ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=6, min_n_ticks=3))
     x_tick_num = len(ax.get_xticks())
     if x_tick_num >= 6:
@@ -80,7 +75,8 @@ def auto_ticks(
     else:
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator(5))
 
-    ax.set_ylim(y_lower_bound, y_upper_bound)
+    if y_lim is not None:
+        ax.set_ylim(y_lim)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=6, min_n_ticks=3))
     y_tick_num = len(ax.get_yticks())
     if y_tick_num >= 6:
