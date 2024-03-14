@@ -1,20 +1,37 @@
 import os
 import gzip
 import multiprocessing as mp
-from typing import Iterator
+from typing import Iterator, Callable, Iterable, Literal
 from warnings import warn
 
 import pandas as pd
 from rdkit import Chem
 from rdkit import DataStructs
 from rdkit.Chem import Draw
+from rdkit.Chem import Descriptors
 from rdkit.Chem import AllChem
 from rdkit.Chem import FilterCatalog
 from rdkit.ML.Cluster import Butina
 from rdkit.ML.Descriptors import MoleculeDescriptors
 from PIL import Image
 
-SIM_FUNCS = {name.lower(): func for name, func, _ in DataStructs.similarityFunctions}
+SIM_FUNCS: dict[str, Callable] = {
+    name.lower(): func for name, func, _ in DataStructs.similarityFunctions
+}
+
+DESC_NAMES: tuple[str, ...] = (
+    "MolWt",
+    "MolLogP",
+    "NumHAcceptors",
+    "NumHDonors",
+    "FractionCSP3",
+    "NumRotatableBonds",
+    "RingCount",
+    "TPSA",
+    "qed",
+)
+
+DEFAULT_DESC_NAMES: set[str] = {name for name, _ in Descriptors.descList}
 
 
 def read_mols(file: str) -> Iterator[Chem.rdchem.Mol]:
@@ -91,9 +108,8 @@ def read_mols(file: str) -> Iterator[Chem.rdchem.Mol]:
                 mol = Chem.MolFromSmiles(row["smiles"])
                 mol.SetProp("_Name", row["title"])
 
-                for prop, value in row.items():
-                    if prop not in {"smiles", "title"}:
-                        mol.SetProp(prop, str(value))
+                for prop, value in row.drop(["smiles", "title"]).items():
+                    mol.SetProp(str(prop), str(value))
 
                 return mol
 
@@ -130,40 +146,76 @@ def is_pains(mol: Chem.rdchem.Mol) -> bool:
 
 def calc_descs(
     mol: Chem.rdchem.Mol,
-    desc_names: tuple[str, ...] = (
-        "MolWt",
-        "MolLogP",
-        "NumHAcceptors",
-        "NumHDonors",
-        "FractionCSP3",
-        "NumRotatableBonds",
-        "RingCount",
-        "TPSA",
-        "qed",
-    ),
-) -> tuple[float, ...]:
+    desc_names: Iterable[str] | str = DESC_NAMES,
+) -> tuple[float] | float:
     """Calculate molecular descriptors
 
     Parameters
     ----------
     mol : rdkit.Chem.rdchem.Mol
         A molecule
-    desc_names : tuple, optional
-        A list of descriptor names, by default (
-            'MolWt', 'MolLogP', 'NumHAcceptors', 'NumHDonors',
-            'FractionCSP3', 'NumRotatableBonds', 'RingCount', 'TPSA', 'qed',
-        ).
+    desc_names : Iterable[str, ...] | str, optional
+        A list of descriptor names, by default DESC_NAMES, or a string of descriptor name.
 
     Returns
     -------
-    descriptors : list
-        A list of molecular descriptors.
-        'MolWt', 'MolLogP', 'NumHAcceptors' and 'NumHDonors' are lipinski's rule of five descriptors.
+    descriptors : tuple[float] | float
+        A list of molecular descriptors, or a single descriptor value
+        'MolWt', 'MolLogP', 'NumHAcceptors' and 'NumHDonors' are lipinski's rule of five descriptors;
         'FractionCSP3', 'NumRotatableBonds', 'RingCount', 'TPSA' and 'qed' are other common descriptors.
     """
 
-    calc = MoleculeDescriptors.MolecularDescriptorCalculator(desc_names)
-    return calc.CalcDescriptors(mol)
+    if isinstance(desc_names, str):
+        if desc_names not in DEFAULT_DESC_NAMES:
+            raise KeyError(
+                f"Descriptor name should be in {DEFAULT_DESC_NAMES}."
+            )
+        # Directly pass a string to desc_names will cause every character to be a "descriptor name"
+        # and return a tuple of interger 777 for UNKNOWN reasons
+        calc = MoleculeDescriptors.MolecularDescriptorCalculator((desc_names,))
+        return calc.CalcDescriptors(mol)[0]
+    elif isinstance(desc_names, Iterable):
+        if invalid_filter_keys := set(desc_names) - set(DEFAULT_DESC_NAMES):
+            raise KeyError(f"Invalid descriptor names: {invalid_filter_keys}")
+        calc = MoleculeDescriptors.MolecularDescriptorCalculator(desc_names)
+        return calc.CalcDescriptors(mol)
+    else:
+        assert False, "Descriptor names should be a string or an iterable of strings."
+
+
+def filt_descs(
+    mol: Chem.rdchem.Mol,
+    filt: dict[str, tuple[float, float]],
+) -> bool:
+    """Filter the molecules based on the descriptors
+
+    Parameters
+    ----------
+    mol : rdkit.Chem.rdchem.Mol
+        A molecule
+    filt : dict[str, tuple[float, float]]
+        A dictionary of descriptor names and their range
+
+    Returns
+    -------
+    filt_pass : bool
+        True if the molecule passes the filter, False otherwise
+    """
+
+    if not filt:
+        return True
+
+    descs = calc_descs(mol, filt.keys())
+    assert isinstance(descs, tuple)
+    bounds = filt.values()
+
+    def _check_desc(desc: float, bound: tuple[float, float]) -> bool:
+        """Check if the descriptor value is in the range"""
+
+        min_val, max_val = bound
+        return min_val <= desc <= max_val
+
+    return all(_check_desc(desc, bound) for desc, bound in zip(descs, bounds))
 
 
 def draw_structures(

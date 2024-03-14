@@ -9,11 +9,47 @@ from warnings import warn
 from tqdm.notebook import tqdm
 from rdkit import Chem
 
-from ._utils import read_mols
+from ._utils import read_mols, filt_descs
 
 
 class SMIConverter:
-    def __init__(self, file: str, prop: str = "_Name", prefix: str = "") -> None:
+    """A class to convert a file to a .smi file
+
+    This class is an iterator that yields SMILES and title of a molecule.
+
+    Attributes
+    ----------
+    file : str
+        Path to the input file
+    prop : str, optional
+        The property to be used as the title, by default "_Name"
+    prefix : str, optional
+        The prefix to be added to the title, by default ""
+    filter : dict[str, tuple[float, float]] | None, optional
+        The filter to be applied to the descriptors, by default None
+    smi_ttl : list[tuple[str, str]]
+        A list of tuples of SMILES and title
+    num : int
+        The number of molecules
+
+    Methods
+    -------
+    deduplicate()
+        Deduplicate the molecules
+    sort()
+        Sort the molecules
+    write(output_dir: str, batch_size: int = 0)
+        Write the .smi file (with optional batch size)
+    """
+
+    def __init__(
+        self,
+        file: str,
+        *,
+        prop: str = "_Name",
+        prefix: str = "",
+        filt: dict[str, tuple[float, float]] | None = None,
+    ) -> None:
         """Initialize the SMIConverter
 
         Parameters
@@ -24,6 +60,8 @@ class SMIConverter:
             The property to be used as the title, by default "_Name"
         prefix : str, optional
             The prefix to be added to the title, by default ""
+        filt : dict[str, tuple[float, float]] | None, optional
+            The filter to be applied to the descriptors, by default None
 
         Returns
         -------
@@ -35,12 +73,20 @@ class SMIConverter:
         self.file = file
         self.prop = prop
         self.prefix = prefix
+        if filt is None:
+            filt = {}
+        self.filt: dict[str, tuple[float, float]] = filt
 
-        self._mols: Iterator[Chem.rdchem.Mol] = read_mols(file)
+        logging.info("Converting %s to .smi file...", file)
+
+        # _extract_smi_ttl is slower than multithreaded read_mols, but multiprocessing did not make it faster
         self.smi_ttl: list[tuple[str, str]] = [
-            self._extract_smi_ttl(mol) for mol in tqdm(self._mols, desc="Converting", unit="mol")
+            self._extract_smi_ttl(mol)
+            for mol in tqdm(
+                read_mols(self.file), desc="Reading", unit="mol"
+            )  # Sometimes multithreaded read_mol will cause deadlock; please use single thread instead
+            if filt_descs(mol, self.filt)
         ]
-
         self.num = len(self.smi_ttl)
 
         logging.info("%s molecules are successfully converted.", self.num)
@@ -67,7 +113,7 @@ class SMIConverter:
 
         return f"SMIConverter(file={self.file}, prop={self.prop}, prefix={self.prefix})"
 
-    def _extract_smi_ttl(self, mol: Chem.rdchem.Mol) -> tuple[str, str]:
+    def _extract_smi_ttl(self, mol: Chem.rdchem.Mol) -> tuple[str, str] | None:
         """Convert a molecule to SMILES and title"""
 
         assert mol is not None, "Molecule is None."
@@ -77,7 +123,6 @@ class SMIConverter:
             warn(f"{self.prop} does not exist in the molecule.")
             return smiles, "Unidentified"
         title = f"{self.prefix}{mol.GetProp(self.prop)}"
-
         return smiles, title
 
     def _write_batch(self, batch: list[tuple[str, str]], file_index: int) -> None:
@@ -145,7 +190,11 @@ class SMIConverter:
                 for i in tqdm(
                     range(0, self.num, batch_size), desc="Writing", unit="mol"
                 ):
-                    executor.submit(self._write_batch, self.smi_ttl[i : i + batch_size], i // batch_size)
+                    executor.submit(
+                        self._write_batch,
+                        self.smi_ttl[i : i + batch_size],
+                        i // batch_size,
+                    )
 
             logging.info(
                 "The .smi files are written to %s",
@@ -158,6 +207,7 @@ def convert_smi(
     *,
     prop: str = "_Name",
     prefix: str = "",
+    filt: dict[str, tuple[float, float]] | None = None,
     deduplicate: bool = False,
     sort: bool = False,
     batch_size: int = 0,
@@ -172,6 +222,8 @@ def convert_smi(
         The property to be used as the title, by default "_Name"
     prefix : str, optional
         The prefix to be added to the title, by default ""
+    filt : dict[str, tuple[float, float]] | None, optional
+        The filter to be applied to the descriptors, by default None
     deduplicate : bool, optional
         Deduplicate the molecules, by default False
     sort : bool, optional
@@ -184,7 +236,7 @@ def convert_smi(
     None
     """
 
-    smi_converter = SMIConverter(input_file, prop, prefix)
+    smi_converter = SMIConverter(input_file, prop=prop, prefix=prefix, filt=filt)
     if deduplicate:
         smi_converter.deduplicate()
     if sort:
@@ -216,6 +268,13 @@ def main():
         default="",
     )
     parser.add_argument(
+        "-f",
+        "--filt",
+        help="The filter to be applied to the descriptors",
+        nargs="+",
+        default=None,
+    )
+    parser.add_argument(
         "-d",
         "--deduplicate",
         help="Deduplicate the molecules",
@@ -240,6 +299,12 @@ def main():
         args.input_file,
         prop=args.prop,
         prefix=args.prefix,
+        filt=dict(
+            zip(
+                args.filt[::3],
+                zip(map(float, args.filt[1::3]), map(float, args.filt[2::3])),
+            )
+        ),
         deduplicate=args.deduplicate,
         sort=args.sort,
         batch_size=args.batch_size,
