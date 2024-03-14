@@ -187,9 +187,7 @@ class SMIConverter:
             )
         else:
             with ThreadPoolExecutor(max_workers=mp.cpu_count()) as executor:
-                for i in tqdm(
-                    range(0, self.num, batch_size), desc="Writing", unit="mol"
-                ):
+                for i in range(0, self.num, batch_size):
                     executor.submit(
                         self._write_batch,
                         self.smi_ttl[i : i + batch_size],
