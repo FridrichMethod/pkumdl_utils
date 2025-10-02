@@ -10,6 +10,6 @@ Some useful scripts for drug design experiments and data analysis.
 
 <https://github.com/FridrichMethod/vspp>
 
-## `VSScripts`: Shell scripts for virtual screening.
+## `VS`: Shell scripts for virtual screening.
 
-<https://github.com/FridrichMethod/VSScripts>
+<https://github.com/FridrichMethod/VS>
