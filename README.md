@@ -9,7 +9,3 @@ Some useful scripts for drug design experiments and data analysis.
 ## `vspp`: A Python package for virtual screening pre- and post-processing.
 
 <https://github.com/FridrichMethod/vspp>
-
-## `VS`: Shell scripts for virtual screening.
-
-<https://github.com/FridrichMethod/VS>
